@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+	<meta charset="utf-8">
+	<meta http-equiv="X-UA-Compatible" content="IE=edge">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<link href="https://fonts.googleapis.com/css?family=Ubuntu:300,400,700&amp;subset=cyrillic" rel="stylesheet">
+	<link href="https://fonts.googleapis.com/css?family=Open+Sans:300,400,700&amp;subset=cyrillic" rel="stylesheet">
+	<link href="https://fonts.googleapis.com/css?family=Roboto:300,400,700&amp;subset=cyrillic" rel="stylesheet">
+	<link href="https://fonts.googleapis.com/css?family=Playfair+Display:400,400i|Tinos:400,400i&amp;subset=cyrillic"
+		rel="stylesheet">
+	<script type="text/javascript" src="/shared/3rdparty/jquery/jquery.js" language="javascript1.1"></script>
+	<script src="index.js"></script>
+	<style>
+* { box-sizing: border-box; }
+body, html { height: 100%; }
+body { background-color: #000000; color: #ffffff;}
+h1 { font-family: "Playfair Display"; font-size: 30px; text-align: center; margin: 0px; }
+.field-box { border: 2px solid #d0d0d0; float: left; }
+.field { position: relative; width: 1024px; height: 640px; }
+.field .tile { position: absolute; width: 27px; height: 27px; background-size: 100%; background-image: url(images/tile-.png); z-index: 5; }
+.field .tileW { background-image: url(images/tile-W.png); }
+.field .tileE { background-image: url(images/tile-E.png); z-index: 10; }
+.field .tileP { background-image: url(images/tile-P.png); z-index: 10; }
+.field .tileHP { background-image: url(images/tile-HP.png); z-index: 9; }
+.field .tileSW { background-image: url(images/tile-SW.png); z-index: 9; }
+.field .tile .health { background-color: #ff0000; z-index: 11; position: absolute; left: 0px; top: 0px; height: 3px; }
+.field .tileP .health { background-color: #00ff00; z-index: 11; position: absolute; left: 0px; top: 0px; height: 3px; }
+.inventory-box { border: 2px solid #d0d0d0; float: left; }
+.inventory { position: relative; width: 800px; height: 32px; }
+.cl { clear: both; display: block; }
+/* Изменен размер плитки(tile), 50 => 27px, слишком большое поле */
+</style>
+</head>
+
+<body>
+	<!-- Добавлено: Контекст игры, обучение и правила. -->
+	<div id="start-screen"
+		style="text-align: center; padding: 50px; color: white; background: #000; position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 100; display: flex; flex-direction: column; justify-content: center; align-items: center; font-family: 'Playfair Display', serif;">
+		<h1>РОГАЛИК: ПУТЬ РЕВОЛЮЦИОНЕРА</h1>
+		<p style="font-size: 18px; max-width: 800px; line-height: 1.6;">
+			Вы — участник восстания, переодетый рыцарем, чтобы пройти на территорию города.
+			Ваш путь лежит через катакомбы прямо в замок.
+			Опасности на каждом шагу. Будьте сильны. Удачи вам попасть в замок.
+			<br><br>
+			<strong>Слава революции!</strong>
+		</p>
+		<h3 style="margin-top: 40px;">УПРАВЛЕНИЕ:</h3>
+		<p>
+			WASD / ЦФЫВ — движение<br>
+			Пробел — атака всех соседних врагов<br>
+			Зелья восстанавливают здоровье, мечи усиливают удар
+		</p>
+		<p style="margin-top: 40px; font-style: italic;">Нажмите любую клавишу, чтобы начать...</p>
+	</div>
+
+	<h1>Игровое поле</h1>
+	<div class="field-box">
+		<div class="field"></div>
+	</div>
+	<div class="cl"></div>
+	<!--h1>Инвентарь</h1>
+		<div class="inventory-box"><div class="inventory"></div></div-->
+
+	<script>
+
+		var game = new Game();
+		game.init();
+	</script>
+</body>
+
+</html>

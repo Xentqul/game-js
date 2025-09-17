@@ -30,7 +30,10 @@ h1 { font-family: "Playfair Display"; font-size: 30px; text-align: center; margi
 .inventory-box { border: 2px solid #d0d0d0; float: left; }
 .inventory { position: relative; width: 800px; height: 32px; }
 .cl { clear: both; display: block; }
-/* Изменен размер плитки(tile), 50 => 27px, слишком большое поле */
+.tile { position: relative; overflow: hidden;}
+.heal-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 255, 0, 0.4); z-index: 10; pointer-events: none;}
+.attack-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(255, 0, 0, 0.4); z-index: 10; pointer-events: none;}
+.sword-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 100, 255, 0.4); z-index: 10; pointer-events: none;}/* Изменен размер плитки(tile), 50 => 27px, слишком большое поле */
 </style>
 </head>
 

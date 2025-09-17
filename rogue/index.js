@@ -15,6 +15,7 @@ class Game {
     this.mapHeight = 24;
     this.currentLevel = 1;
     this.enemyInterval = null;
+    this.handleKeyPress = null; //  Добавляем ссылку на обработчик
   }
 
   init() {
@@ -333,7 +334,11 @@ class Game {
   //============================================================================
 
   bindKeys() {
-    document.addEventListener("keydown", (e) => {
+    // ✅ Удаляем старые обработчики перед добавлением новых
+    document.removeEventListener("keydown", this.handleKeyPress);
+
+    // ✅ Сохраняем ссылку на обработчик для последующего удаления
+    this.handleKeyPress = (e) => {
       let newX = this.hero.x;
       let newY = this.hero.y;
 
@@ -373,7 +378,9 @@ class Game {
       this.checkItemCollision();
       this.enemyAttack();
       this.renderMap();
-    });
+    };
+
+    document.addEventListener("keydown", this.handleKeyPress);
   }
 
   moveHero(x, y) {
@@ -388,12 +395,19 @@ class Game {
   //============================================================================
 
   attack() {
+    // Если игра уже завершена (показано сообщение о победе), не выполняем атаку
+    if (
+      document.getElementById("victory-overlay") ||
+      document.querySelector('[style*="background: rgba(0,0,0,0.8)"]')
+    ) {
+      return;
+    }
+
     // Подсветка атаки
     this.highlightAttackArea();
     setTimeout(() => {
       this.clearAttackHighlight();
     }, 300);
-    // renderMap() вызывается ниже, после логики атаки — этого достаточно
 
     const directions = [
       { dx: -1, dy: 0 },
@@ -418,9 +432,13 @@ class Game {
       }
     }
 
-    // Проверка на победу
+    // ✅ ПРОВЕРКА НА ПОБЕДУ - ПЕРВЫЙ УРОВЕНЬ: "ПРОДОЛЖИТЬ", ВТОРОЙ: "ФИНАЛЬНАЯ ПОБЕДА"
     if (this.enemies.length === 0) {
-      this.showVictoryMessage();
+      if (this.currentLevel === 1) {
+        this.showVictoryMessage(); // Первая победа - экран "Продолжить"
+      } else if (this.currentLevel === 2) {
+        this.showFinalVictory(); // Вторая победа - экран финальной победы
+      }
     }
   }
 
@@ -461,11 +479,19 @@ class Game {
   }
 
   getTileElement(x, y) {
-    const left = x * this.tileSize;
-    const top = y * this.tileSize;
-    return document.querySelector(
-      `.tile[style*="left: ${left}px"][style*="top: ${top}px"]`
-    );
+    const tiles = document.querySelectorAll(".tile");
+    const targetLeft = x * this.tileSize;
+    const targetTop = y * this.tileSize;
+
+    for (const tile of tiles) {
+      const left = parseInt(tile.style.left);
+      const top = parseInt(tile.style.top);
+
+      if (left === targetLeft && top === targetTop) {
+        return tile;
+      }
+    }
+    return null;
   }
 
   checkItemCollision() {
@@ -476,6 +502,30 @@ class Game {
       this.hero.power += 5;
       this.swords.splice(swordIndex, 1);
       this.map[this.hero.y][this.hero.x] = "P";
+
+      // ✅ Добавляем голубую подсветку для меча
+      this.renderMap();
+
+      setTimeout(() => {
+        const heroTile = this.getTileElement(this.hero.x, this.hero.y);
+        if (heroTile) {
+          const overlay = document.createElement("div");
+          overlay.style.position = "absolute";
+          overlay.style.top = "0";
+          overlay.style.left = "0";
+          overlay.style.width = "100%";
+          overlay.style.height = "100%";
+          overlay.style.backgroundColor = "rgba(0, 100, 255, 0.4)"; // Голубой цвет
+          overlay.style.zIndex = "10";
+          overlay.className = "sword-overlay";
+          heroTile.appendChild(overlay);
+
+          setTimeout(() => {
+            const swordOverlay = heroTile.querySelector(".sword-overlay");
+            if (swordOverlay) swordOverlay.remove();
+          }, 500);
+        }
+      }, 10);
     }
 
     const potionIndex = this.potions.findIndex(
@@ -485,26 +535,30 @@ class Game {
       this.hero.health = Math.min(100, this.hero.health + 20);
       this.potions.splice(potionIndex, 1);
       this.map[this.hero.y][this.hero.x] = "P";
-      this.renderMap(); // ✅ Сначала перерисовываем карту — чтобы получить актуальный DOM
 
-      const heroTile = this.getTileElement(this.hero.x, this.hero.y);
-      if (heroTile) {
-        const overlay = document.createElement("div");
-        overlay.style.position = "absolute";
-        overlay.style.top = "0";
-        overlay.style.left = "0";
-        overlay.style.width = "100%";
-        overlay.style.height = "100%";
-        overlay.style.backgroundColor = "rgba(0, 255, 0, 0.4)";
-        overlay.style.zIndex = "1";
-        overlay.className = "heal-overlay";
-        heroTile.appendChild(overlay);
+      // Зеленая подсветка для зелья
+      this.renderMap();
 
-        setTimeout(() => {
-          const healOverlay = heroTile.querySelector(".heal-overlay");
-          if (healOverlay) healOverlay.remove();
-        }, 500);
-      }
+      setTimeout(() => {
+        const heroTile = this.getTileElement(this.hero.x, this.hero.y);
+        if (heroTile) {
+          const overlay = document.createElement("div");
+          overlay.style.position = "absolute";
+          overlay.style.top = "0";
+          overlay.style.left = "0";
+          overlay.style.width = "100%";
+          overlay.style.height = "100%";
+          overlay.style.backgroundColor = "rgba(0, 255, 0, 0.4)";
+          overlay.style.zIndex = "10";
+          overlay.className = "heal-overlay";
+          heroTile.appendChild(overlay);
+
+          setTimeout(() => {
+            const healOverlay = heroTile.querySelector(".heal-overlay");
+            if (healOverlay) healOverlay.remove();
+          }, 500);
+        }
+      }, 10);
     }
   }
 
@@ -528,6 +582,12 @@ class Game {
 
   startEnemyMovement() {
     this.enemyInterval = setInterval(() => {
+      // ✅ Если показано сообщение о победе, останавливаем движение
+      if (document.getElementById("victory-overlay")) {
+        clearInterval(this.enemyInterval);
+        return;
+      }
+
       for (let i = 0; i < this.enemies.length; i++) {
         const enemy = this.enemies[i];
 
@@ -585,34 +645,69 @@ class Game {
   }
 
   showVictoryMessage() {
+    // ✅ Проверяем, не показано ли уже сообщение о победе
+    if (document.getElementById("victory-overlay")) {
+      return;
+    }
+
     clearInterval(this.enemyInterval);
 
     const victoryDiv = document.createElement("div");
-    victoryDiv.id = "victory-overlay"; // ✅ Добавляем ID для точного удаления
+    victoryDiv.id = "victory-overlay";
     victoryDiv.innerHTML = `
     <div style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 1000; display: flex; flex-direction: column; justify-content: center; align-items: center; color: white; font-family: 'Playfair Display', serif; padding: 20px; text-align: center;">
       <h2 style="font-size: 32px;">Фух... Их больше, чем мы планировали...</h2>
       <p style="font-size: 24px; margin: 30px 0;">Но я не могу остановиться. Нужно идти дальше...</p>
-      <button onclick="document.querySelector('#victory-overlay')?.remove(); game.startNextLevel()" style="padding: 15px 30px; font-size: 20px; background: #33aa33; color: white; border: none; cursor: pointer; border-radius: 5px;">
+      <button id="continue-button" style="padding: 15px 30px; font-size: 20px; background: #33aa33; color: white; border: none; cursor: pointer; border-radius: 5px;">
         Продолжить путь
       </button>
     </div>
   `;
     document.body.appendChild(victoryDiv);
+
+    // ✅ Используем делегирование событий
+    victoryDiv.addEventListener("click", (e) => {
+      if (
+        e.target.id === "continue-button" ||
+        e.target.closest("#continue-button")
+      ) {
+        victoryDiv.remove();
+        this.startNextLevel();
+      }
+    });
   }
 
   startNextLevel() {
+    // ✅ Полностью очищаем интервал движения врагов
+    if (this.enemyInterval) {
+      clearInterval(this.enemyInterval);
+      this.enemyInterval = null;
+    }
+
     this.currentLevel++;
 
+    // ✅ Проверяем окончательную победу ДО генерации карты
     if (this.currentLevel > 2) {
       this.showFinalVictory();
       return;
     }
 
+    // ✅ Сбрасываем состояние игры перед генерацией новой карты
+    this.enemies = [];
+    this.swords = [];
+    this.potions = [];
+
     this.generateMap();
     this.renderMap();
     this.bindKeys();
     this.startEnemyMovement();
+
+    console.log(
+      "Начался уровень",
+      this.currentLevel,
+      "врагов:",
+      this.enemies.length
+    );
   }
 
   showFinalVictory() {

@@ -1,7 +1,9 @@
 class Game {
   constructor() {
     this.field = null;
-    this.inventory = null;
+    this.inventorySlots = 5;
+    this.inventory = Array(this.inventorySlots).fill(null);
+    this.selectedInventoryIndex = 0;
     this.map = [];
     this.hero = { x: 0, y: 0, health: 100, power: 10, swords: 0 };
     this.enemies = [];
@@ -18,6 +20,7 @@ class Game {
     // Музыка
     this.music = {
       menu: null,
+      pickup: null,
       fight: null,
       nextLevel: null,
       died: null,
@@ -35,12 +38,9 @@ class Game {
   init() {
     this.field = document.querySelector(".field");
     this.inventory = document.querySelector(".inventory");
-    this.initMusic();
-    this.setupMusicInteraction();
-    this.showStartScreen();
+    this.initMusic(); // Просто создаем аудио-объекты
+    this.showStartScreen(); // Вся логика запуска здесь
     this.updateInventory();
-    // Пытаемся сразу включить музыку меню
-    this.playMusic("menu");
   }
 
   // ============================================================================
@@ -49,43 +49,25 @@ class Game {
 
   initMusic() {
     this.music.menu = new Audio("music/main-menu.mp3");
+    this.music.pickup = new Audio("music/pick-smth.mp3");
     this.music.fight = new Audio("music/fight.mp3");
     this.music.nextLevel = new Audio("music/next-level.mp3");
     this.music.died = new Audio("music/died.mp3");
     this.music.end = new Audio("music/end.mp3");
 
     this.music.menu.loop = true;
+    this.music.pickup.loop = false;
     this.music.fight.loop = true;
     this.music.nextLevel.loop = false;
     this.music.died.loop = false;
     this.music.end.loop = false;
 
     this.music.menu.volume = 0.7;
-    this.music.fight.volume = 0.7;
+    this.music.pickup.volume = 0.9;
+    this.music.fight.volume = 0.6;
     this.music.nextLevel.volume = 0.7;
     this.music.died.volume = 0.7;
     this.music.end.volume = 0.7;
-  }
-
- setupMusicInteraction() {
-    const unlockAudio = () => {
-      if (!this.musicEnabled) {
-        this.musicEnabled = true;
-        // Воспроизводим музыку меню при первом взаимодействии
-        this.playMusic("menu");
-        document.removeEventListener("click", unlockAudio);
-        document.removeEventListener("keydown", unlockAudio);
-      }
-    };
-
-    // Пытаемся сразу включить музыку меню (может не сработать из-за политики браузера)
-    this.playMusic("menu");
-    
-    // Если не удалось воспроизвести, добавляем обработчики для первого взаимодействия
-    if (!this.musicEnabled) {
-      document.addEventListener("click", unlockAudio);
-      document.addEventListener("keydown", unlockAudio);
-    }
   }
 
   playMusic(trackName) {
@@ -95,21 +77,30 @@ class Game {
       return;
     }
 
-    // Останавливаем текущий трек
-    if (this.currentTrack) {
-      this.currentTrack.pause();
-      this.currentTrack.currentTime = 0;
+    // Для звука подбора предмета не останавливаем другую музыку
+    if (trackName === "pickup") {
+      // Создаем копию аудио для одновременного воспроизведения
+      const pickupSound = this.music.pickup.cloneNode();
+      pickupSound.volume = 0.9;
+      pickupSound.play();
+      return;
     }
+
+    // Останавливаем ВСЮ музыку перед запуском новой
+    this.stopMusic();
 
     // Воспроизводим новый трек
     this.currentTrack = this.music[trackName];
     if (this.currentTrack) {
       const playPromise = this.currentTrack.play();
-      
+
       // Если воспроизведение не удалось, ждем взаимодействия пользователя
       if (playPromise !== undefined) {
         playPromise.catch((error) => {
-          console.log("Автовоспроизведение заблокировано, ждем взаимодействия:", error);
+          console.log(
+            "Автовоспроизведение заблокировано, ждем взаимодействия:",
+            error
+          );
           this.musicEnabled = false;
           this.musicQueue = trackName;
         });
@@ -118,25 +109,29 @@ class Game {
   }
 
   stopMusic() {
-    if (this.currentTrack) {
-      this.currentTrack.pause();
-      this.currentTrack.currentTime = 0;
-      this.currentTrack = null;
+    // Останавливаем ВСЕ треки, кроме звуков подбора
+    for (const trackName in this.music) {
+      if (this.music.hasOwnProperty(trackName) && trackName !== "pickup") {
+        const track = this.music[trackName];
+        track.pause();
+        track.currentTime = 0; // Перематываем на начало
+      }
     }
+    this.currentTrack = null; // Сбрасываем текущий трек
   }
 
   // ============================================================================
   // =========================== ЭКРАНЫ ИГРЫ ====================================
   // ============================================================================
 
-showStartScreen() {
-  const startScreen = document.getElementById("start-screen");
-  if (!startScreen) return;
+  showStartScreen() {
+    const startScreen = document.getElementById("start-screen");
+    if (!startScreen) return;
 
-  // Создаем кнопку для включения музыки
-  const enableMusicButton = document.createElement("button");
-  enableMusicButton.textContent = "Включить музыку";
-  enableMusicButton.style.cssText = `
+    // Создаем кнопку для включения музыки
+    const enableMusicButton = document.createElement("button");
+    enableMusicButton.textContent = "Включить музыку";
+    enableMusicButton.style.cssText = `
     padding: 15px 30px;
     font-size: 20px;
     background: #33aa33;
@@ -146,60 +141,68 @@ showStartScreen() {
     border-radius: 5px;
     margin-top: 20px;
   `;
-  
-  // Добавляем кнопку на экран
-  startScreen.appendChild(enableMusicButton);
 
-  let musicEnabledByButton = false;
+    // Добавляем кнопку на экран
+    startScreen.appendChild(enableMusicButton);
 
-  // Обработчик для кнопки включения музыки
-  enableMusicButton.addEventListener("click", () => {
-    if (!musicEnabledByButton) {
-      this.musicEnabled = true;
-      this.playMusic("menu");
-      musicEnabledByButton = true;
-      enableMusicButton.textContent = "Музыка включена!";
-      enableMusicButton.style.background = "#555";
-      
-      // Показываем сообщение о том, что нужно нажать любую клавишу
-      const message = document.createElement("p");
-      message.textContent = "Нажмите любую клавишу для начала игры";
-      message.style.cssText = `
+    let musicEnabledByButton = false;
+
+    // Обработчик для кнопки включения музыки
+    enableMusicButton.addEventListener("click", () => {
+      if (!musicEnabledByButton) {
+        // === ВСЯ ЛОГИКА РАЗБЛОКИРОВКИ МУЗЫКИ ТЕПЕРЬ ЗДЕСЬ ===
+        this.musicEnabled = true;
+        musicEnabledByButton = true;
+
+        // Пытаемся воспроизвести музыку меню
+        this.playMusic("menu")
+          .then(() => {
+            // Если удалось, меняем кнопку
+            enableMusicButton.textContent = "Музыка включена!";
+            enableMusicButton.style.background = "#555";
+          })
+          .catch((error) => {
+            // Если не удалось (блокировка браузера), оставляем кнопку активной
+            console.error("Не удалось воспроизвести музыку:", error);
+            this.musicEnabled = false;
+            musicEnabledByButton = false;
+          });
+
+        // Показываем сообщение о том, что нужно нажать любую клавишу
+        const message = document.createElement("p");
+        message.textContent = "Нажмите любую клавишу для начала игры";
+        message.style.cssText = `
         color: white;
         font-size: 18px;
         margin-top: 20px;
       `;
-      startScreen.appendChild(message);
-    }
-  });
+        startScreen.appendChild(message);
+      }
+    });
 
-  // Обработчик для любой клавиши клавиатуры
-  const keyHandler = (e) => {
-    // Игнорируем клики мыши
-    if (e.type === 'click') return;
-    
-    // Начинаем игру только если музыка была включена через кнопку
-    if (musicEnabledByButton) {
-      startScreen.style.display = "none";
-      document.removeEventListener("keydown", keyHandler);
-      document.removeEventListener("click", keyHandler); // На всякий случай
-      this.stopMusic();
-      this.startGame();
-    }
-  };
+    // Обработчик для любой клавиши клавиатуры
+    const keyHandler = (e) => {
+      // Игнорируем клики мыши
+      if (e.type === "click") return;
 
-  document.addEventListener("keydown", keyHandler);
-  
-  // Также добавляем обработчик клика, но он будет игнорироваться
-  document.addEventListener("click", keyHandler);
-}
+      // Начинаем игру только если музыка была включена через кнопку
+      if (musicEnabledByButton) {
+        startScreen.style.display = "none";
+        document.removeEventListener("keydown", keyHandler);
+        this.stopMusic(); // Останавливаем музыку меню
+        this.startGame(); // Запускаем игру и музыку боя
+      }
+    };
+
+    document.addEventListener("keydown", keyHandler);
+  }
 
   startGame() {
     this.generateMap();
     this.renderMap();
     this.bindKeys();
     this.startEnemyMovement();
-    this.playMusic("fight");
+    this.playMusic("fight"); // stopMusic() вызовется внутри playMusic
   }
 
   showGameOverScreen() {
@@ -236,7 +239,7 @@ showStartScreen() {
     if (this.currentLevel === 1) {
       message = `
         <h2 style="font-size: 32px;">Фух... Их больше, чем мы планировали...</h2>
-        <p style="font-size: 24px; margin: 30px 0;">Но я не могу остановиться. Нужно идти дальше...</p>
+        <p style="font-size: 24px; margin: 30px 0;">Но я не могу остановиться. Нужно идть дальше...</p>
       `;
       buttonText = "Продолжить путь";
     } else if (this.currentLevel === 2) {
@@ -587,42 +590,52 @@ showStartScreen() {
     document.removeEventListener("keydown", this.handleKeyPress);
 
     this.handleKeyPress = (e) => {
-      let newX = this.hero.x;
-      let newY = this.hero.y;
-
-      switch (e.key.toLowerCase()) {
+      const key = e.key.toLowerCase();
+      
+      // Обработка движения и атаки
+      switch (key) {
         case "w":
         case "ц":
-          newY--;
+          this.moveHero(this.hero.x, this.hero.y - 1);
           break;
         case "s":
         case "ы":
-          newY++;
+          this.moveHero(this.hero.x, this.hero.y + 1);
           break;
         case "a":
         case "ф":
-          newX--;
+          this.moveHero(this.hero.x - 1, this.hero.y);
           break;
         case "d":
         case "в":
-          newX++;
+          this.moveHero(this.hero.x + 1, this.hero.y);
           break;
         case " ":
           this.attack();
           return;
+        case "e":
+        case "у":
+          this.useInventoryItem();
+          return;
+        case "t":
+        case "е":
+          this.showDeleteConfirmation();
+          return;
+        case "1":
+        case "2":
+        case "3":
+        case "4":
+        case "5":
+          this.selectInventorySlot(parseInt(key) - 1);
+          return;
+        case "arrowleft":
+          this.selectInventorySlot((this.selectedInventoryIndex - 1 + this.inventorySlots) % this.inventorySlots);
+          return;
+        case "arrowright":
+          this.selectInventorySlot((this.selectedInventoryIndex + 1) % this.inventorySlots);
+          return;
       }
 
-      if (
-        newX < 0 ||
-        newX >= this.mapWidth ||
-        newY < 0 ||
-        newY >= this.mapHeight ||
-        this.map[newY][newX] === "W"
-      ) {
-        return;
-      }
-
-      this.moveHero(newX, newY);
       this.checkItemCollision();
       this.enemyAttack();
       this.renderMap();
@@ -631,7 +644,37 @@ showStartScreen() {
     document.addEventListener("keydown", this.handleKeyPress);
   }
 
+  // Использование предмета из инвентаря
+  useInventoryItem() {
+    const item = this.inventory[this.selectedInventoryIndex];
+    
+    if (item && item.type === "potion") {
+      if (this.hero.health < 100) {
+        this.hero.health = Math.min(100, this.hero.health + 20);
+        this.inventory[this.selectedInventoryIndex] = null;
+        this.updateInventory();
+        this.showItemEffect("heal");
+      }
+    }
+  }
+
+  // Выбор слота инвентаря
+  selectInventorySlot(index) {
+    this.selectedInventoryIndex = index;
+    this.updateInventory();
+  }
+
   moveHero(x, y) {
+    // Проверяем, находится ли новая позиция в пределах карты
+    if (x < 0 || x >= this.mapWidth || y < 0 || y >= this.mapHeight) {
+      return; // Не позволяем выйти за границы
+    }
+    
+    // Проверяем, является ли новая позиция проходимой
+    if (this.map[y][x] !== "." && this.map[y][x] !== "SW" && this.map[y][x] !== "HP") {
+      return; // Не позволяем ходить через стены и врагов
+    }
+    
     this.map[this.hero.y][this.hero.x] = ".";
     this.hero.x = x;
     this.hero.y = y;
@@ -658,6 +701,11 @@ showStartScreen() {
     for (const dir of directions) {
       const targetX = this.hero.x + dir.dx;
       const targetY = this.hero.y + dir.dy;
+
+      // Проверяем, находится ли цель в пределах карты
+      if (targetX < 0 || targetX >= this.mapWidth || targetY < 0 || targetY >= this.mapHeight) {
+        continue;
+      }
 
       // Атака врагов
       const enemyIndex = this.enemies.findIndex(
@@ -779,8 +827,22 @@ showStartScreen() {
   // =========================== ПРЕДМЕТЫ И ИНВЕНТАРЬ ===========================
   // ============================================================================
 
+  // Добавляем метод для добавления в инвентарь
+  addToInventory(itemType) {
+    // Ищем пустой слот
+    for (let i = 0; i < this.inventorySlots; i++) {
+      if (this.inventory[i] === null) {
+        this.inventory[i] = { type: itemType };
+        this.updateInventory();
+        return true;
+      }
+    }
+    return false; // Инвентарь полон
+  }
+
+  // Обновляем метод проверки столкновения с зельем
   checkItemCollision() {
-    // Мечи
+    // Мечи (оставляем как было)
     const swordIndex = this.swords.findIndex(
       (s) => s.x === this.hero.x && s.y === this.hero.y
     );
@@ -791,17 +853,32 @@ showStartScreen() {
       this.map[this.hero.y][this.hero.x] = "P";
       this.updateInventory();
       this.showItemEffect("sword");
+      this.playMusic("pickup");
     }
 
-    // Зелья
+    // Зелья (новая логика)
     const potionIndex = this.potions.findIndex(
       (p) => p.x === this.hero.x && p.y === this.hero.y
     );
     if (potionIndex !== -1) {
-      this.hero.health = Math.min(100, this.hero.health + 20);
+      this.playMusic("pickup"); // Звук подбора
+      
+      if (this.hero.health >= 100) {
+        // Здоровье полное - добавляем в инвентарь
+        const added = this.addToInventory("potion");
+        if (!added) {
+          // Если инвентарь полон, используем сразу
+          this.hero.health = Math.min(100, this.hero.health + 20);
+          this.showItemEffect("heal");
+        }
+      } else {
+        // Здоровье не полное - используем сразу
+        this.hero.health = Math.min(100, this.hero.health + 20);
+        this.showItemEffect("heal");
+      }
+      
       this.potions.splice(potionIndex, 1);
       this.map[this.hero.y][this.hero.x] = "P";
-      this.showItemEffect("heal");
     }
   }
 
@@ -831,17 +908,89 @@ showStartScreen() {
     }, 10);
   }
 
+  // Показать подтверждение удаления
+showDeleteConfirmation() {
+  const item = this.inventory[this.selectedInventoryIndex];
+  if (!item) return;
+
+  // Создаем overlay подтверждения
+  const overlay = document.createElement("div");
+  overlay.style.cssText = `
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(0, 0, 0, 0.9);
+    padding: 20px;
+    border: 2px solid red;
+    border-radius: 10px;
+    z-index: 1000;
+    color: white;
+    text-align: center;
+  `;
+
+  overlay.innerHTML = `
+    <p>Вы уверены, что хотите выбросить предмет?</p>
+    <p>Он пропадет безвозвратно!</p>
+    <div style="margin-top: 15px;">
+      <button id="confirm-delete-yes" style="margin-right: 10px; padding: 5px 15px;">Да</button>
+      <button id="confirm-delete-no" style="padding: 5px 15px;">Нет</button>
+    </div>
+  `;
+
+  document.body.appendChild(overlay);
+
+  // Обработчики кнопок
+  document.getElementById("confirm-delete-yes").onclick = () => {
+    this.inventory[this.selectedInventoryIndex] = null;
+    this.updateInventory();
+    document.body.removeChild(overlay);
+  };
+
+  document.getElementById("confirm-delete-no").onclick = () => {
+    document.body.removeChild(overlay);
+  };
+}
+
   updateInventory() {
-    this.inventory.innerHTML = "";
-    for (let i = 0; i < 5; i++) {
-      const slot = document.createElement("div");
-      slot.className = "slot";
-      slot.style.left = "0px";
-      slot.style.top = i * this.tileSize * 2 + "px";
-      if (i < this.hero.swords) slot.classList.add("sword");
-      this.inventory.appendChild(slot);
+  this.inventory.innerHTML = "";
+  
+  for (let i = 0; i < this.inventorySlots; i++) {
+    const slot = document.createElement("div");
+    slot.className = "slot";
+    slot.style.left = "0px";
+    slot.style.top = i * this.tileSize * 2 + "px";
+    
+    // Выделение выбранного слота
+    if (i === this.selectedInventoryIndex) {
+      slot.style.border = "2px solid green";
     }
+    
+    // Отображение предметов
+    if (this.inventory[i]) {
+      if (this.inventory[i].type === "potion") {
+        slot.classList.add("potion");
+        const potionIcon = document.createElement("div");
+        potionIcon.className = "potion-icon";
+        potionIcon.textContent = "♥";
+        potionIcon.style.cssText = `
+          color: red;
+          font-size: 20px;
+          text-align: center;
+          line-height: ${this.tileSize * 2}px;
+        `;
+        slot.appendChild(potionIcon);
+      }
+    }
+    
+    // Отображение мечей (старая система)
+    if (i < this.hero.swords) {
+      slot.classList.add("sword");
+    }
+    
+    this.inventory.appendChild(slot);
   }
+}
 
   // ============================================================================
   // =========================== ДВИЖЕНИЕ ВРАГОВ ================================

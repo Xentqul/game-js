@@ -5,7 +5,7 @@ class Game {
     this.inventory = Array(this.inventorySlots).fill(null);
     this.selectedInventoryIndex = 0;
     this.map = [];
-    this.hero = { x: 0, y: 0, health: 100, power: 10, swords: 0 };
+    this.hero = { x: 0, y: 0, health: 100, power: 10 };
     this.enemies = [];
     this.swords = [];
     this.potions = [];
@@ -37,7 +37,7 @@ class Game {
 
   init() {
     this.field = document.querySelector(".field");
-    this.inventory = document.querySelector(".inventory");
+    this.inventoryEl = document.querySelector(".inventory"); // не путать с массивом!!!
     this.initMusic(); // Просто создаем аудио-объекты
     this.showStartScreen(); // Вся логика запуска здесь
     this.updateInventory();
@@ -591,8 +591,7 @@ class Game {
 
     this.handleKeyPress = (e) => {
       const key = e.key.toLowerCase();
-      
-      // Обработка движения и атаки
+
       switch (key) {
         case "w":
         case "ц":
@@ -629,10 +628,15 @@ class Game {
           this.selectInventorySlot(parseInt(key) - 1);
           return;
         case "arrowleft":
-          this.selectInventorySlot((this.selectedInventoryIndex - 1 + this.inventorySlots) % this.inventorySlots);
+          this.selectInventorySlot(
+            (this.selectedInventoryIndex - 1 + this.inventorySlots) %
+              this.inventorySlots
+          );
           return;
         case "arrowright":
-          this.selectInventorySlot((this.selectedInventoryIndex + 1) % this.inventorySlots);
+          this.selectInventorySlot(
+            (this.selectedInventoryIndex + 1) % this.inventorySlots
+          );
           return;
       }
 
@@ -644,37 +648,21 @@ class Game {
     document.addEventListener("keydown", this.handleKeyPress);
   }
 
-  // Использование предмета из инвентаря
-  useInventoryItem() {
-    const item = this.inventory[this.selectedInventoryIndex];
-    
-    if (item && item.type === "potion") {
-      if (this.hero.health < 100) {
-        this.hero.health = Math.min(100, this.hero.health + 20);
-        this.inventory[this.selectedInventoryIndex] = null;
-        this.updateInventory();
-        this.showItemEffect("heal");
-      }
-    }
-  }
-
-  // Выбор слота инвентаря
-  selectInventorySlot(index) {
-    this.selectedInventoryIndex = index;
-    this.updateInventory();
-  }
-
   moveHero(x, y) {
     // Проверяем, находится ли новая позиция в пределах карты
     if (x < 0 || x >= this.mapWidth || y < 0 || y >= this.mapHeight) {
       return; // Не позволяем выйти за границы
     }
-    
+
     // Проверяем, является ли новая позиция проходимой
-    if (this.map[y][x] !== "." && this.map[y][x] !== "SW" && this.map[y][x] !== "HP") {
+    if (
+      this.map[y][x] !== "." &&
+      this.map[y][x] !== "SW" &&
+      this.map[y][x] !== "HP"
+    ) {
       return; // Не позволяем ходить через стены и врагов
     }
-    
+
     this.map[this.hero.y][this.hero.x] = ".";
     this.hero.x = x;
     this.hero.y = y;
@@ -703,7 +691,12 @@ class Game {
       const targetY = this.hero.y + dir.dy;
 
       // Проверяем, находится ли цель в пределах карты
-      if (targetX < 0 || targetX >= this.mapWidth || targetY < 0 || targetY >= this.mapHeight) {
+      if (
+        targetX < 0 ||
+        targetX >= this.mapWidth ||
+        targetY < 0 ||
+        targetY >= this.mapHeight
+      ) {
         continue;
       }
 
@@ -829,10 +822,17 @@ class Game {
 
   // Добавляем метод для добавления в инвентарь
   addToInventory(itemType) {
-    // Ищем пустой слот
+    // Ищем первый пустой слот
     for (let i = 0; i < this.inventorySlots; i++) {
       if (this.inventory[i] === null) {
-        this.inventory[i] = { type: itemType };
+        const newItem = { type: itemType };
+        this.inventory[i] = newItem;
+
+        // Если это меч — усиливаем героя ОДИН РАЗ при подборе
+        if (itemType === "sword") {
+          this.hero.power += 5;
+        }
+
         this.updateInventory();
         return true;
       }
@@ -840,48 +840,167 @@ class Game {
     return false; // Инвентарь полон
   }
 
-  // Обновляем метод проверки столкновения с зельем
+  // Выбор слота инвентаря
+  selectInventorySlot(index) {
+    this.selectedInventoryIndex = index;
+    this.updateInventory();
+  }
+
+  useInventoryItem() {
+    const item = this.inventory[this.selectedInventoryIndex];
+    if (!item) return;
+
+    if (item.type === "potion" && this.hero.health < 100) {
+      this.hero.health = Math.min(100, this.hero.health + 20);
+      this.inventory[this.selectedInventoryIndex] = null;
+      this.updateInventory();
+      this.showItemEffect("heal");
+    }
+    // Мечи нельзя "использовать" — они уже усилили героя при подборе
+  }
+
+  selectInventorySlot(index) {
+    this.selectedInventoryIndex = index;
+    this.updateInventory();
+  }
+
+  showDeleteConfirmation() {
+    const item = this.inventory[this.selectedInventoryIndex];
+    if (!item) return;
+
+    const overlay = document.createElement("div");
+    overlay.style.cssText = `
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(0, 0, 0, 0.9);
+      padding: 20px;
+      border: 2px solid red;
+      border-radius: 10px;
+      z-index: 1000;
+      color: white;
+      text-align: center;
+      font-family: Arial, sans-serif;
+    `;
+
+    overlay.innerHTML = `
+      <p>Вы уверены, что хотите выбросить предмет?</p>
+      <p>Он пропадет безвозвратно!</p>
+      <div style="margin-top: 15px;">
+        <button id="confirm-delete-yes" style="margin-right: 10px; padding: 8px 20px; background: #ff3333; color: white; border: none; border-radius: 4px; cursor: pointer;">Да</button>
+        <button id="confirm-delete-no" style="padding: 8px 20px; background: #555; color: white; border: none; border-radius: 4px; cursor: pointer;">Нет</button>
+      </div>
+    `;
+
+    document.body.appendChild(overlay);
+
+    document.getElementById("confirm-delete-yes").onclick = () => {
+      this.inventory[this.selectedInventoryIndex] = null;
+      this.updateInventory();
+      document.body.removeChild(overlay);
+    };
+
+    document.getElementById("confirm-delete-no").onclick = () => {
+      document.body.removeChild(overlay);
+    };
+
+    // Закрыть по Esc
+    const escHandler = (e) => {
+      if (e.key === "Escape") {
+        document.body.removeChild(overlay);
+        document.removeEventListener("keydown", escHandler);
+      }
+    };
+    document.addEventListener("keydown", escHandler);
+  }
+
   checkItemCollision() {
-    // Мечи (оставляем как было)
+    // Мечи
     const swordIndex = this.swords.findIndex(
       (s) => s.x === this.hero.x && s.y === this.hero.y
     );
-    if (swordIndex !== -1 && this.hero.swords < 4) {
-      this.hero.swords++;
-      this.hero.power += 5;
-      this.swords.splice(swordIndex, 1);
-      this.map[this.hero.y][this.hero.x] = "P";
-      this.updateInventory();
-      this.showItemEffect("sword");
+    if (swordIndex !== -1) {
       this.playMusic("pickup");
+      if (!this.addToInventory("sword")) {
+        // Инвентарь полон — просто игнорируем (или можно показать сообщение)
+      }
+      this.map[this.hero.y][this.hero.x] = "P";
+      this.swords.splice(swordIndex, 1);
     }
 
-    // Зелья (новая логика)
+    // Зелья
     const potionIndex = this.potions.findIndex(
       (p) => p.x === this.hero.x && p.y === this.hero.y
     );
     if (potionIndex !== -1) {
-      this.playMusic("pickup"); // Звук подбора
-      
+      this.playMusic("pickup");
       if (this.hero.health >= 100) {
-        // Здоровье полное - добавляем в инвентарь
-        const added = this.addToInventory("potion");
-        if (!added) {
-          // Если инвентарь полон, используем сразу
+        // Полное здоровье — кладем в инвентарь
+        if (!this.addToInventory("potion")) {
+          // Инвентарь полон — используем сразу
           this.hero.health = Math.min(100, this.hero.health + 20);
           this.showItemEffect("heal");
         }
       } else {
-        // Здоровье не полное - используем сразу
+        // Не полное — используем сразу
         this.hero.health = Math.min(100, this.hero.health + 20);
         this.showItemEffect("heal");
       }
-      
-      this.potions.splice(potionIndex, 1);
       this.map[this.hero.y][this.hero.x] = "P";
+      this.potions.splice(potionIndex, 1);
     }
   }
 
+updateInventory() {
+  if (!this.inventoryEl) return;
+  this.inventoryEl.innerHTML = "";
+
+  for (let i = 0; i < this.inventorySlots; i++) {
+    const slot = document.createElement("div");
+    slot.className = "slot";
+    slot.style.position = "absolute";
+    slot.style.left = "0px";
+    slot.style.top = i * this.tileSize * 2 + "px";
+    slot.style.width = this.tileSize * 2 + "px";
+    slot.style.height = this.tileSize * 2 + "px";
+    slot.style.backgroundImage = "url('images/tile.png')"; // фон слота
+    slot.style.backgroundSize = "cover";
+    slot.style.border = "1px solid #444";
+
+    // Выделение выбранного слота
+    if (i === this.selectedInventoryIndex) {
+      slot.style.border = "2px solid green";
+      slot.style.boxShadow = "0 0 8px rgba(0, 255, 0, 0.6)";
+    }
+
+    // Отображение предмета — ИСПОЛЬЗУЕМ НАСТОЯЩИЕ СПРАЙТЫ
+    if (this.inventory[i]) {
+      const item = this.inventory[i];
+      const itemSprite = document.createElement("div");
+
+      // ОБЯЗАТЕЛЬНО: задаём размеры и позиционирование
+      itemSprite.style.position = "absolute";
+      itemSprite.style.width = "100%";
+      itemSprite.style.height = "100%";
+      itemSprite.style.top = "0";
+      itemSprite.style.left = "0";
+
+      // Добавляем классы, как на карте — они уже содержат background-image в CSS
+      itemSprite.className = "tile " + (item.type === "sword" ? "tileSW" : "tileHP");
+
+      // ПЕРЕОПРЕДЕЛЯЕМ стили, чтобы спрайт точно отобразился
+      itemSprite.style.backgroundSize = "70%"; // можно подогнать
+      itemSprite.style.backgroundPosition = "center";
+      itemSprite.style.backgroundRepeat = "no-repeat";
+      itemSprite.style.zIndex = "1";
+
+      slot.appendChild(itemSprite);
+    }
+
+    this.inventoryEl.appendChild(slot);
+  }
+}
   showItemEffect(type) {
     this.renderMap();
     setTimeout(() => {
@@ -907,91 +1026,6 @@ class Game {
       }
     }, 10);
   }
-
-  // Показать подтверждение удаления
-showDeleteConfirmation() {
-  const item = this.inventory[this.selectedInventoryIndex];
-  if (!item) return;
-
-  // Создаем overlay подтверждения
-  const overlay = document.createElement("div");
-  overlay.style.cssText = `
-    position: fixed;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    background: rgba(0, 0, 0, 0.9);
-    padding: 20px;
-    border: 2px solid red;
-    border-radius: 10px;
-    z-index: 1000;
-    color: white;
-    text-align: center;
-  `;
-
-  overlay.innerHTML = `
-    <p>Вы уверены, что хотите выбросить предмет?</p>
-    <p>Он пропадет безвозвратно!</p>
-    <div style="margin-top: 15px;">
-      <button id="confirm-delete-yes" style="margin-right: 10px; padding: 5px 15px;">Да</button>
-      <button id="confirm-delete-no" style="padding: 5px 15px;">Нет</button>
-    </div>
-  `;
-
-  document.body.appendChild(overlay);
-
-  // Обработчики кнопок
-  document.getElementById("confirm-delete-yes").onclick = () => {
-    this.inventory[this.selectedInventoryIndex] = null;
-    this.updateInventory();
-    document.body.removeChild(overlay);
-  };
-
-  document.getElementById("confirm-delete-no").onclick = () => {
-    document.body.removeChild(overlay);
-  };
-}
-
-  updateInventory() {
-  this.inventory.innerHTML = "";
-  
-  for (let i = 0; i < this.inventorySlots; i++) {
-    const slot = document.createElement("div");
-    slot.className = "slot";
-    slot.style.left = "0px";
-    slot.style.top = i * this.tileSize * 2 + "px";
-    
-    // Выделение выбранного слота
-    if (i === this.selectedInventoryIndex) {
-      slot.style.border = "2px solid green";
-    }
-    
-    // Отображение предметов
-    if (this.inventory[i]) {
-      if (this.inventory[i].type === "potion") {
-        slot.classList.add("potion");
-        const potionIcon = document.createElement("div");
-        potionIcon.className = "potion-icon";
-        potionIcon.textContent = "♥";
-        potionIcon.style.cssText = `
-          color: red;
-          font-size: 20px;
-          text-align: center;
-          line-height: ${this.tileSize * 2}px;
-        `;
-        slot.appendChild(potionIcon);
-      }
-    }
-    
-    // Отображение мечей (старая система)
-    if (i < this.hero.swords) {
-      slot.classList.add("sword");
-    }
-    
-    this.inventory.appendChild(slot);
-  }
-}
-
   // ============================================================================
   // =========================== ДВИЖЕНИЕ ВРАГОВ ================================
   // ============================================================================

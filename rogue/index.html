@@ -27,7 +27,19 @@ h1 { font-family: "Playfair Display"; font-size: 30px; text-align: center; margi
 .field .tileSW { background-image: url(images/tile-SW.png); z-index: 9; }
 .field .tile .health { background-color: #ff0000; z-index: 11; position: absolute; left: 0px; top: 0px; height: 3px; }
 .field .tileP .health { background-color: #00ff00; z-index: 11; position: absolute; left: 0px; top: 0px; height: 3px; }
-.inventory-box { border: 2px solid #d0d0d0; float: left; margin-left: 20px; }
+.tile.tileSW {
+  background-image: url(images/tile-SW.png);
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+.tile.tileHP {
+  background-image: url(images/tile-HP.png);
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}.inventory-box { border: 2px solid #d0d0d0; float: left; margin-left: 20px; }
 .inventory { position: relative; width: 135px; height: 500px; }
 .inventory .slot { position: absolute; width: 27px; height: 27px; background-size: 100%; background-image: url(images/tile-.png); border: 1px solid #888; }
 .inventory .slot.sword { background-image: url(images/tile-SW.png); }

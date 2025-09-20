@@ -174,78 +174,90 @@ class Game {
   // =========================== ЭКРАНЫ ИГРЫ ====================================
   // ============================================================================
   // стартовый экран - глав. меню
-  showStartScreen() {
-    const startScreen = document.getElementById("start-screen");
-    if (!startScreen) return;
+showStartScreen() {
+  const startScreen = document.getElementById("start-screen");
+  if (!startScreen) return;
 
-    // кнопка для включения музыки
-    const enableMusicButton = document.createElement("button");
-    enableMusicButton.textContent = "Включить музыку";
-    enableMusicButton.style.cssText = `
-    padding: 15px 30px;
-    font-size: 20px;
-    background: #33aa33;
-    color: white;
-    border: none;
-    cursor: pointer;
-    border-radius: 5px;
-    margin-top: 20px;
+  // ЗАМЕНИТЕ ВЕСЬ КОД НА ЭТОТ:
+  startScreen.innerHTML = `
+    <h1>РОГАЛИК: ПУТЬ РЕВОЛЮЦИОНЕРА</h1>
+    <p style="font-size: 18px; max-width: 800px; line-height: 1.6;">
+      Вы — участник восстания, переодетый рыцарем, чтобы пройти на территорию города.
+      Ваш путь лежит через катакомбы прямо в замок.
+      Опасности на каждом шагу. Будьте сильны. Удачи вам попасть в замок.
+      <br><br>
+      <strong>Слава революции!</strong>
+    </p>
+    <h3 style="margin-top: 40px;">УПРАВЛЕНИЕ:</h3>
+    <p>
+      WASD / ЦФЫВ — движение (вверх, влево, вниз, вправо).<br>
+      Пробел — атака всех соседних врагов.<br>
+      Использовать зелье - русская "У"/английская "E".<br>
+      Слоты инвентаря - 1, 2, 3, 4, 5.<br>
+      Удалить из инвентаря русская - "Е"/английская "T".<br>
+      Зелья восстанавливают здоровье.<br>
+      Мечи усиливают удары.<br>
+      Зелья попадают в инвентарь, если здоровье персонажа 100%.
+    </p>
+    <button id="enable-music-btn" style="
+      padding: 15px 30px;
+      font-size: 20px;
+      background: #33aa33;
+      color: white;
+      border: none;
+      cursor: pointer;
+      border-radius: 5px;
+      margin-top: 20px;
+    ">Включить музыку</button>
+    <p id="music-message" style="color: white; font-size: 18px; margin-top: 20px; display: none;">
+      Нажмите любую клавишу для начала игры
+    </p>
   `;
 
-    // добавляем кнопку на экран
-    startScreen.appendChild(enableMusicButton);
+  let musicEnabledByButton = false;
+  const enableMusicButton = document.getElementById("enable-music-btn");
+  const musicMessage = document.getElementById("music-message");
 
-    let musicEnabledByButton = false;
+  // обработчик для кнопки включения музыки
+  enableMusicButton.addEventListener("click", () => {
+    if (!musicEnabledByButton) {
+      // === ВСЯ ЛОГИКА РАЗБЛОКИРОВКИ МУЗЫКИ ===
+      this.musicEnabled = true;
+      musicEnabledByButton = true;
 
-    // обработчик для кнопки включения музыки
-    enableMusicButton.addEventListener("click", () => {
-      if (!musicEnabledByButton) {
-        // === ВСЯ ЛОГИКА РАЗБЛОКИРОВКИ МУЗЫКИ ===
-        this.musicEnabled = true;
-        musicEnabledByButton = true;
+      // попытка воспроизвести музыку меню
+      this.playMusic("menu")
+        .then(() => {
+          // если удалось, сменить кнопку
+          enableMusicButton.textContent = "Музыка включена!";
+          enableMusicButton.style.background = "#555";
+          enableMusicButton.disabled = true;
+        })
+        .catch((error) => {
+          // если не удалось (блокировка браузера), оставить кнопку активной
+          console.error("Не удалось воспроизвести музыку:", error);
+          this.musicEnabled = false;
+          musicEnabledByButton = false;
+        });
 
-        // попытка воспроизвести музыку меню
-        this.playMusic("menu")
-          .then(() => {
-            // если удалось, сменить кнопку
-            enableMusicButton.textContent = "Музыка включена!";
-            enableMusicButton.style.background = "#555";
-          })
-          .catch((error) => {
-            // если не удалось (блокировка браузера), оставить кнопку активной
-            console.error("Не удалось воспроизвести музыку:", error);
-            this.musicEnabled = false;
-            musicEnabledByButton = false;
-          });
+      // показывать сообщение о том, что нужно нажать любую клавишу
+      musicMessage.style.display = "block";
+    }
+  });
 
-        // показывать сообщение о том, что нужно нажать любую клавишу
-        const message = document.createElement("p");
-        message.textContent = "Нажмите любую клавишу для начала игры";
-        message.style.cssText = `
-        color: white;
-        font-size: 18px;
-        margin-top: 20px;
-      `;
-        startScreen.appendChild(message);
-      }
-    });
+  // обработчик для ЛЮБОЙ клавиши клавиатуры
+  const keyHandler = (e) => {
+    // начинаем игру только если музыка была ВКЛЮЧЕНА ЧЕРЕЗ КНОПКУ
+    if (musicEnabledByButton) {
+      startScreen.style.display = "none";
+      document.removeEventListener("keydown", keyHandler);
+      this.stopMusic(); // останавливаем музыку меню
+      this.startGame(); // запускаем игру и музыку боя
+    }
+  };
 
-    // обработчик для ЛЮБОЙ клавиши клавиатуры
-    const keyHandler = (e) => {
-      // игнорируем клики мыши!
-      if (e.type === "click") return;
-
-      // начинаем игру только если музыка была ВКЛЮЧЕНА ЧЕРЕЗ КНОПКУ
-      if (musicEnabledByButton) {
-        startScreen.style.display = "none";
-        document.removeEventListener("keydown", keyHandler);
-        this.stopMusic(); // останавливаем музыку меню
-        this.startGame(); // запускаем игру и музыку боя
-      }
-    };
-
-    document.addEventListener("keydown", keyHandler);
-  }
+  document.addEventListener("keydown", keyHandler);
+}
 
   startGame() {
     this.generateMap();

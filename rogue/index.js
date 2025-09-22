@@ -120,43 +120,52 @@ class Game {
     this.music.end.volume = 0.7;
   }
 
-  playMusic(trackName) {
-    // если музыка еще не разблокирована, ставим в очередь
-    if (!this.musicEnabled) {
-      this.musicQueue = trackName;
-      return;
-    }
-
-    // наслоить звук подбора поверх звука битвы
-    if (trackName === "pickup") {
-      // создаем копию аудио для одновременного воспроизведения
-      const pickupSound = this.music.pickup.cloneNode();
-      pickupSound.volume = 0.9;
-      pickupSound.play();
-      return;
-    }
-
-    // Останавливаем ВСЮ музыку перед запуском новой (смена на экраны/глав. меню/меню паузы)
-    this.stopMusic();
-
-    // воспроизводим новый трек
-    this.currentTrack = this.music[trackName];
-    if (this.currentTrack) {
-      const playPromise = this.currentTrack.play();
-
-      // если воспроизведение не удалось, ждем взаимодействия пользователя
-      if (playPromise !== undefined) {
-        playPromise.catch((error) => {
-          console.log(
-            "Автовоспроизведение заблокировано, ждем взаимодействия:",
-            error
-          );
-          this.musicEnabled = false;
-          this.musicQueue = trackName;
-        });
-      }
-    }
+playMusic(trackName) {
+  // Возвращаем Promise, чтобы вызов this.playMusic(...).then(...) был корректен.
+  // Если музыка ещё не разблокирована — возвращаем отклонённый промис.
+  if (!this.musicEnabled) {
+    this.musicQueue = trackName;
+    return Promise.reject(new Error("music not enabled"));
   }
+
+  // Звук подбора — допускаем наслоение (не прерываем основной трек).
+  if (trackName === "pickup") {
+    const pickupSound = this.music.pickup.cloneNode(true);
+    pickupSound.volume = 0.9;
+    const pickPromise = pickupSound.play();
+    if (pickPromise !== undefined) {
+      // возвращаем реальный промис, если браузер его дал
+      return pickPromise;
+    }
+    return Promise.resolve();
+  }
+
+  // Останавливаем предыдущую музыку и начинаем новый трек
+  this.stopMusic();
+
+  this.currentTrack = this.music[trackName];
+  if (!this.currentTrack) {
+    return Promise.reject(new Error("track not found: " + trackName));
+  }
+
+  // Попытка воспроизвести - play() возвращает Promise в современных браузерах
+  const playPromise = this.currentTrack.play();
+
+  if (playPromise !== undefined) {
+    // Если промис есть, обрабатываем случай блокировки автозапуска:
+    return playPromise.catch((error) => {
+      console.log("Автовоспроизведение заблокировано, ждем взаимодействия:", error);
+      // верим логике: помечаем как заблокированное и ставим в очередь
+      this.musicEnabled = false;
+      this.musicQueue = trackName;
+      // пробрасываем ошибку дальше, чтобы .catch сверху отрабатывал
+      throw error;
+    });
+  } else {
+    // В старых браузерах play() может не возвращать промис — просто резолв
+    return Promise.resolve();
+  }
+}
 
   stopMusic() {
     // останавливаем ВСЕ треки, кроме звуков подбора
@@ -178,7 +187,6 @@ showStartScreen() {
   const startScreen = document.getElementById("start-screen");
   if (!startScreen) return;
 
-  // ЗАМЕНИТЕ ВЕСЬ КОД НА ЭТОТ:
   startScreen.innerHTML = `
     <h1>РОГАЛИК: ПУТЬ РЕВОЛЮЦИОНЕРА</h1>
     <p style="font-size: 18px; max-width: 800px; line-height: 1.6;">
@@ -210,7 +218,7 @@ showStartScreen() {
       margin-top: 20px;
     ">Включить музыку</button>
     <p id="music-message" style="color: white; font-size: 18px; margin-top: 20px; display: none;">
-      Нажмите любую клавишу для начала игры
+      Нажмите любую клавишу на клавиатуре для начала игры
     </p>
   `;
 
